@@ -1,12 +1,2 @@
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\AppRunner.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\auth\AuthManager.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\downloader\AssetsDownloader.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\downloader\LibraryDownloader.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\downloader\MetadataDownloader.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\launch\MinecraftLauncher.java
+C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\launcher\VersionManager.java
 C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\MainApp.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\ui\Controller.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\util\DataStore.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\util\GsonFactory.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\util\SettingsManager.java
-C:\Users\mohan\Downloads\CodexLauncher\src\main\java\com\mhndk27\codex\util\ZipUtils.java
