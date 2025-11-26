@@ -18,6 +18,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID; // <--- تم إضافة هذا الاستيراد
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.jar.JarFile;
@@ -73,7 +74,6 @@ public class MinecraftLauncher {
                 return;
             }
             
-            // 1. استخراج Natives إلى مجلد مؤقت
             nativesDir = extractNatives(manifest);
             
             String classpath = buildClassPath(manifest, versionId);
@@ -85,7 +85,6 @@ public class MinecraftLauncher {
             
             List<String> gameArguments = parseGameArguments(profile, manifest);
 
-            // 2. بناء الأمر مع مسار Natives
             List<String> command = buildLaunchCommand(profile, mainClass, classpath, assetsIndex, gameArguments, nativesDir);
 
             System.out.println("Command Structure: java -cp <CLASSPATH> " + mainClass + " [ARGS]");
@@ -97,32 +96,61 @@ public class MinecraftLauncher {
             processBuilder.directory(workingDir);
             System.out.println("Working Directory set to: " + workingDir.getAbsolutePath());
 
-            System.out.println("Starting Minecraft process...");
+            System.out.println("Starting Minecraft process... 🚀");
             
-            // 3. تشغيل العملية 
             Process process = processBuilder.start(); 
             
-            // يمكنك هنا إضافة منطق لمراقبة العملية (مثلاً: حذف ملفات Natives عند الإغلاق)
-            // process.waitFor(); 
+            // انتظار إغلاق اللعبة
+            process.waitFor(); 
+            
+            int exitCode = process.exitValue();
+            System.out.println("Minecraft exited with code: " + exitCode);
             
         } catch (IOException e) {
             System.err.println("FATAL: Error running process. Details: " + e.getMessage());
             e.printStackTrace();
+        } catch (InterruptedException e) {
+             Thread.currentThread().interrupt();
+             System.err.println("Process interrupted.");
         } finally {
-            // يجب عليك إضافة منطق لتنظيف مجلد Natives عند انتهاء اللعبة! (تجاهلناه مؤقتاً)
+            // خطوة التنظيف (Cleanup)
+            if (nativesDir != null) {
+                 System.out.println("Cleaning up natives directory: " + nativesDir.getAbsolutePath());
+                 try {
+                     deleteDirectory(nativesDir);
+                     System.out.println("Natives directory cleaned up successfully. 😎");
+                 } catch (IOException e) {
+                     System.err.println("Error during natives cleanup: " + e.getMessage());
+                 }
+            }
         }
     }
     
     /**
+     * deleteDirectory(): دالة مساعدة لحذف مجلد والمحتوى بداخله بشكل متكرر.
+     */
+    private void deleteDirectory(File dir) throws IOException {
+        if (dir.isDirectory()) {
+            File[] children = dir.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteDirectory(child);
+                }
+            }
+        }
+        if (!dir.delete()) {
+            throw new IOException("Failed to delete file/directory: " + dir.getAbsolutePath());
+        }
+    }
+
+
+    /**
      * getTemporaryNativesDir(): إنشاء مجلد مؤقت لاستخراج Natives إليه.
      */
     private File getTemporaryNativesDir() throws IOException {
-        String tempDirName = "natives-" + System.currentTimeMillis();
+        String tempDirName = "natives-" + UUID.randomUUID().toString(); 
         File tempDir = new File(VERSIONS_DIR, tempDirName); 
         
-        if (tempDir.exists()) {
-            // يمكن إضافة منطق حذف المجلد الموجود مسبقًا هنا
-        }
         if (!tempDir.mkdirs()) {
             throw new IOException("Failed to create temporary natives directory: " + tempDir.getAbsolutePath());
         }
@@ -141,12 +169,11 @@ public class MinecraftLauncher {
             String nativeId = lib.getNativeId();
             if (nativeId != null) {
                 
-                // تحويل اسم المكتبة إلى مسار محلي JAR
                 String[] parts = lib.getName().split(":");
                 String path = parts[0].replace('.', File.separatorChar) + File.separator 
                             + parts[1] + File.separator 
                             + parts[2] + File.separator 
-                            + parts[1] + "-" + parts[2] + "-" + nativeId + ".jar"; // إضافة nativeId هنا
+                            + parts[1] + "-" + parts[2] + "-" + nativeId + ".jar"; 
                 
                 File nativeJar = new File(LIBRARIES_DIR, path);
                 
@@ -156,7 +183,6 @@ public class MinecraftLauncher {
                         while (entries.hasMoreElements()) {
                             ZipEntry entry = entries.nextElement();
                             
-                            // استثناء ملفات الميتا (Meta files)
                             if (entry.getName().contains("META-INF")) {
                                 continue;
                             }
@@ -186,7 +212,7 @@ public class MinecraftLauncher {
         }
         return nativesDir;
     }
-
+    
     private String buildClassPath(VersionManifest manifest, String versionId) {
         List<String> libraryPaths = manifest.getLibraries().stream()
             .filter(VersionManifest.Library::appliesToCurrentOS) 
@@ -239,10 +265,7 @@ public class MinecraftLauncher {
         
         return Arrays.asList(resolvedArgs.split(" "));
     }
-    
-    /**
-     * buildLaunchCommand(): بناء أمر تشغيل الجافا كاملاً.
-     */
+
     private List<String> buildLaunchCommand(Profile profile, String mainClass, String classpath, String assetsIndex, List<String> gameArguments, File nativesDir) {
         List<String> command = new ArrayList<>();
         
@@ -252,11 +275,9 @@ public class MinecraftLauncher {
         }
         command.add(javaExecutable); 
         
-        // --- إضافة مسار Natives كـ JVM Argument ---
         if (nativesDir != null) {
             command.add("-Djava.library.path=" + nativesDir.getAbsolutePath());
         }
-        // ---------------------------------------------
         
         // JVM Arguments
         command.add("-Xmx" + profile.getMemoryMax() + "M"); 
