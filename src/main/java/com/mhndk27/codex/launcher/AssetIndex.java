@@ -3,19 +3,28 @@ package com.mhndk27.codex.launcher;
 import java.util.Map;
 
 /**
- * AssetIndex: A model class to map the structure of the assets index JSON file.
+ * AssetIndex: Model class for the assets index file (e.g., 1.21.json).
+ * يجب أن تطابق أسماء الحقول تماماً أسماء الحقول في ملف JSON.
  */
 public class AssetIndex {
     
+    // هذا الحقل (Field) يجب أن يكون اسمه "objects"
     private Map<String, AssetObject> objects;
 
     public Map<String, AssetObject> getObjects() {
         return objects;
     }
 
+    /**
+     * Inner class AssetObject: Holds the file hash and size.
+     */
     public static class AssetObject {
-        private String hash;
-        private long size; 
+        
+        // هذا الحقل (Field) يجب أن يكون اسمه "hash"
+        private String hash; 
+        
+        // هذا الحقل (Field) يجب أن يكون اسمه "size"
+        private long size;
 
         public String getHash() {
             return hash;
@@ -23,14 +32,6 @@ public class AssetIndex {
 
         public long getSize() {
             return size;
-        }
-
-        /**
-         * getPath(): يرجع المسار الصحيح للأصل داخل مجلد assets/objects.
-         * يكون على شكل: <أول خانتين من الهاش>/<الهاش كاملاً>
-         */
-        public String getPath() {
-            return hash.substring(0, 2) + "/" + hash;
         }
     }
 }
