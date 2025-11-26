@@ -18,7 +18,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID; // <--- تم إضافة هذا الاستيراد
+import java.util.UUID; // <--- تم تصحيح خطأ الاستيراد
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.jar.JarFile;
@@ -33,6 +33,7 @@ public class MinecraftLauncher {
     private static final File ASSETS_DIR = new File(MINECRAFT_ROOT_DIR, "assets"); 
     
     private final DataManager dataManager = new DataManager(); 
+    private final DownloadManager downloadManager = new DownloadManager(); 
 
     private static String getMinecraftRootDir() {
         if (SystemUtils.IS_OS_WINDOWS) {
@@ -58,12 +59,16 @@ public class MinecraftLauncher {
         
         File versionJsonFile = new File(VERSIONS_DIR, versionId + File.separator + versionId + ".json");
         
-        if (!versionJsonFile.exists()) {
-            System.err.println("Error: Version JSON file not found at: " + versionJsonFile.getAbsolutePath());
-            System.err.println("Please download the version files or check the Version ID in your profiles.json.");
+        // 1. التحقق وتنزيل ملف الـ JSON
+        // **مؤقت:** نستخدم رابط وهاش ثابت لإصدار 1.20.1 لغرض التجربة
+        String knownVersionJsonUrl = "https://piston-data.mojang.com/v1/objects/1c261947b744474724a0d8e8736a5b672a9e34a2/1.20.1.json"; 
+        String dummySha1 = "d4807a505165c40467b7f2f11467406a6669910d";
+
+        if (!downloadManager.downloadFile(knownVersionJsonUrl, versionJsonFile, dummySha1)) {
+            System.err.println("FATAL: Failed to ensure version JSON file. Cannot proceed.");
             return;
         }
-
+        
         File nativesDir = null;
 
         try (FileReader reader = new FileReader(versionJsonFile)) {
@@ -71,6 +76,12 @@ public class MinecraftLauncher {
             
             if (manifest == null || manifest.getMainClass() == null) {
                 System.err.println("Error parsing version JSON manifest or Main Class is missing.");
+                return;
+            }
+            
+            // 2. تنزيل جميع المكتبات وملف الكلاينت JAR
+            if (!downloadRequiredFiles(manifest, versionId)) {
+                System.err.println("FATAL: Failed to download all required libraries and client JAR. Launch aborted.");
                 return;
             }
             
@@ -100,7 +111,6 @@ public class MinecraftLauncher {
             
             Process process = processBuilder.start(); 
             
-            // انتظار إغلاق اللعبة
             process.waitFor(); 
             
             int exitCode = process.exitValue();
@@ -113,7 +123,6 @@ public class MinecraftLauncher {
              Thread.currentThread().interrupt();
              System.err.println("Process interrupted.");
         } finally {
-            // خطوة التنظيف (Cleanup)
             if (nativesDir != null) {
                  System.out.println("Cleaning up natives directory: " + nativesDir.getAbsolutePath());
                  try {
@@ -126,6 +135,67 @@ public class MinecraftLauncher {
         }
     }
     
+    /**
+     * downloadRequiredFiles(): تنزيل ملف الكلاينت وجميع المكتبات المطلوبة.
+     */
+    private boolean downloadRequiredFiles(VersionManifest manifest, String versionId) {
+        System.out.println("--- Starting Resource Download Check ---");
+        
+        // التحقق من وجود معلومات التحميل
+        if (manifest.getDownloads() == null || manifest.getDownloads().getClient() == null) {
+            System.err.println("FATAL: Missing Client download information in version manifest.");
+            return false;
+        }
+
+        // 1. تنزيل ملف Client JAR الرئيسي
+        VersionManifest.ClientDownload clientDownload = manifest.getDownloads().getClient();
+        File mainJar = new File(VERSIONS_DIR, versionId + File.separator + versionId + ".jar");
+        
+        if (!downloadManager.downloadFile(clientDownload.getUrl(), mainJar, clientDownload.getSha1())) {
+            return false;
+        }
+
+        // 2. تنزيل جميع المكتبات (Libraries) والـ Natives
+        for (VersionManifest.Library lib : manifest.getLibraries()) {
+            if (!lib.appliesToCurrentOS() || lib.getDownloads() == null) {
+                continue; 
+            }
+
+            // أ. تنزيل المكتبات العادية (Artifact)
+            VersionManifest.Artifact artifact = lib.getDownloads().getArtifact();
+            if (artifact != null && artifact.getUrl() != null) {
+                 File libFile = new File(LIBRARIES_DIR, artifact.getPath());
+                 if (!downloadManager.downloadFile(artifact.getUrl(), libFile, artifact.getSha1())) {
+                     return false;
+                 }
+            }
+
+            // ب. تنزيل Natives (Classifiers)
+            String nativeId = lib.getNativeId();
+            if (nativeId != null) {
+                VersionManifest.Artifact nativeArtifact = lib.getDownloads().getClassifiers();
+                
+                if (nativeArtifact != null && nativeArtifact.getUrl() != null) {
+                    // بناء مسار ملف Native JAR بناءً على الـ nativeId
+                    String[] parts = lib.getName().split(":");
+                    String nativePath = parts[0].replace('.', File.separatorChar) + File.separator 
+                                      + parts[1] + File.separator 
+                                      + parts[2] + File.separator 
+                                      + parts[1] + "-" + parts[2] + "-" + nativeId + ".jar"; 
+                    
+                    File nativeFile = new File(LIBRARIES_DIR, nativePath);
+                    
+                    if (!downloadManager.downloadFile(nativeArtifact.getUrl(), nativeFile, nativeArtifact.getSha1())) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        System.out.println("--- All core resources are ready. 🔥 ---");
+        return true;
+    }
+
     /**
      * deleteDirectory(): دالة مساعدة لحذف مجلد والمحتوى بداخله بشكل متكرر.
      */
@@ -217,12 +287,18 @@ public class MinecraftLauncher {
         List<String> libraryPaths = manifest.getLibraries().stream()
             .filter(VersionManifest.Library::appliesToCurrentOS) 
             .map(lib -> {
-                String[] parts = lib.getName().split(":");
-                String path = parts[0].replace('.', File.separatorChar) + File.separator 
-                            + parts[1] + File.separator 
-                            + parts[2] + File.separator 
-                            + parts[1] + "-" + parts[2] + ".jar";
-                return new File(LIBRARIES_DIR, path).getAbsolutePath();
+                VersionManifest.Artifact artifact = lib.getDownloads().getArtifact();
+                if (artifact != null && artifact.getPath() != null) {
+                    return new File(LIBRARIES_DIR, artifact.getPath()).getAbsolutePath();
+                } else {
+                    // في حال عدم وجود معلومات تحميل مباشرة (وهو نادر)، نستخدم المسار القديم
+                    String[] parts = lib.getName().split(":");
+                    String path = parts[0].replace('.', File.separatorChar) + File.separator 
+                                + parts[1] + File.separator 
+                                + parts[2] + File.separator 
+                                + parts[1] + "-" + parts[2] + ".jar";
+                    return new File(LIBRARIES_DIR, path).getAbsolutePath();
+                }
             })
             .collect(Collectors.toList());
 
@@ -244,8 +320,9 @@ public class MinecraftLauncher {
         
         Account account = dataManager.getActiveAccount();
         String username = account != null ? account.getUsername() : "Player";
+        // إذا كان الـ accessToken فارغاً، اللعبة ستحاول التشغيل في وضع الأوفلاين (Offline Mode)
         String uuid = account != null ? account.getUuid() : "00000000-0000-0000-0000-000000000000"; 
-        String accessToken = account != null ? account.getAccessToken() : "0";
+        String accessToken = account != null ? account.getAccessToken() : "0"; 
         
         Map<String, String> replacements = new HashMap<>();
         replacements.put("${auth_player_name}", username);

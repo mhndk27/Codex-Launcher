@@ -13,6 +13,7 @@ public class VersionManifest {
     private AssetsIndex assetsIndex; 
     private String assets; 
     private String minecraftArguments; 
+    private DownloadsContainer downloads;
 
     // --- Getters ---
     public String getMainClass() { return mainClass; }
@@ -20,6 +21,7 @@ public class VersionManifest {
     public AssetsIndex getAssetsIndex() { return assetsIndex; } 
     public String getAssets() { return assets; } 
     public String getMinecraftArguments() { return minecraftArguments; } 
+    public DownloadsContainer getDownloads() { return downloads; }
 
     /**
      * Inner class AssetsIndex: Contains information about the assets file.
@@ -30,51 +32,74 @@ public class VersionManifest {
     }
     
     /**
+     * Inner class DownloadsContainer: يحتوي على معلومات تحميل ملف الكلاينت الرئيسي (Client JAR).
+     */
+    public static class DownloadsContainer {
+        private ClientDownload client;
+        public ClientDownload getClient() { return client; }
+    }
+    
+    /**
+     * Inner class ClientDownload: يحتوي على رابط التحميل والـ SHA1 لملف الكلاينت.
+     */
+    public static class ClientDownload {
+        private String url;
+        private String sha1;
+        public String getUrl() { return url; }
+        public String getSha1() { return sha1; }
+    }
+
+    
+    /**
      * Inner class Library: Represents a single dependency JAR file.
      */
     public static class Library {
         private String name; 
-        private Downloads downloads; 
+        private LibraryDownloads downloads;
         private List<Rule> rules; 
-        private Map<String, String> natives; // تم الإضافة: لتحديد مسار الملف التنفيذي الأصلي حسب OS
-        private Extract extract;             // تم الإضافة: لتحديد الملفات التي يجب استثناؤها
+        private Map<String, String> natives; 
+        private Extract extract;            
 
         public String getName() { return name; }
         public List<Rule> getRules() { return rules; }
-        public Map<String, String> getNatives() { return natives; } // Getter جديد
-
-        /**
-         * getNativeId(): للحصول على اسم Native JAR المناسب لنظام التشغيل الحالي.
-         * (المنطق هنا بسيط، يفترض windows)
-         */
+        public Map<String, String> getNatives() { return natives; }
+        public LibraryDownloads getDownloads() { return downloads; }
+        public Extract getExtract() { return extract; }
+        
         public String getNativeId() {
             if (natives == null) return null;
-            
-            // في اللانشرات الحقيقية يتم التحقق من نظام التشغيل (OS) بدقة
             if (natives.containsKey("windows")) {
-                return natives.get("windows").replace("${arch}", "64"); // نفترض 64 بت
+                // يفترض هنا أننا دائما نستخدم نسخة 64 بت
+                return natives.get("windows").replace("${arch}", "64"); 
             }
             return null;
         }
 
         public boolean appliesToCurrentOS() {
-            // Placeholder: Assume all libraries apply for now.
+            // Placeholder: Assume all libraries apply for now (حتى نبرمج منطق القواعد الكامل).
             return true; 
         }
     }
     
-    public static class Extract {
-        private List<String> exclude; // قائمة الملفات/المسارات المستبعدة من الاستخراج
-    }
-    
-    public static class Downloads {
+    public static class LibraryDownloads {
         private Artifact artifact;
+        private Artifact classifiers; // للمكتبات الخاصة مثل Natives
         public Artifact getArtifact() { return artifact; }
+        public Artifact getClassifiers() { return classifiers; }
+    }
+
+    
+    public static class Extract {
+        private List<String> exclude; 
     }
     
     public static class Artifact {
+        private String url;
         private String path; 
+        private String sha1;
+        public String getUrl() { return url; }
         public String getPath() { return path; }
+        public String getSha1() { return sha1; } 
     }
     
     public static class Rule {
