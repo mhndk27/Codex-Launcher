@@ -5,10 +5,13 @@ com\mhndk27\codex\data\DataManager$1.class
 com\mhndk27\codex\launcher\VersionManifest$ClientDownload.class
 com\mhndk27\codex\launcher\VersionManifest$DownloadsContainer.class
 com\mhndk27\codex\launcher\VersionManager.class
+com\mhndk27\codex\launcher\VersionManifestIndex$Version.class
 com\mhndk27\codex\data\DataManager$2.class
 com\mhndk27\codex\launcher\VersionManifest$Os.class
 com\mhndk27\codex\MainApp.class
 com\mhndk27\codex\launcher\DownloadManager.class
+com\mhndk27\codex\launcher\AssetIndex$AssetObject.class
+com\mhndk27\codex\launcher\VersionManifestIndex.class
 com\mhndk27\codex\launcher\VersionManifest$Artifact.class
 com\mhndk27\codex\launcher\VersionManifest$Extract.class
 com\mhndk27\codex\launcher\VersionManifest$Rule.class
@@ -16,4 +19,5 @@ com\mhndk27\codex\launcher\VersionManifest.class
 com\mhndk27\codex\launcher\VersionManifest$LibraryDownloads.class
 com\mhndk27\codex\data\Account.class
 com\mhndk27\codex\data\Profile.class
+com\mhndk27\codex\launcher\AssetIndex.class
 com\mhndk27\codex\launcher\VersionManifest$AssetsIndex.class

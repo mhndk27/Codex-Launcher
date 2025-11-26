@@ -27,13 +27,16 @@ public class MinecraftLauncher {
 
     private static final Gson GSON = new GsonBuilder().create(); 
     
+    // الرابط الرئيسي لقائمة إصدارات ماينكرافت
+    private static final String VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"; 
+    
     private static final String MINECRAFT_ROOT_DIR = getMinecraftRootDir();
     private static final File VERSIONS_DIR = new File(MINECRAFT_ROOT_DIR, "versions");
     private static final File LIBRARIES_DIR = new File(MINECRAFT_ROOT_DIR, "libraries");
     private static final File ASSETS_DIR = new File(MINECRAFT_ROOT_DIR, "assets"); 
-    private static final File ASSETS_OBJECTS_DIR = new File(ASSETS_DIR, "objects"); // مسار ملفات الأصول الحقيقية
+    private static final File ASSETS_OBJECTS_DIR = new File(ASSETS_DIR, "objects"); 
     
-    private static final String ASSETS_BASE_URL = "https://resources.download.minecraft.net/"; // الرابط الأساسي لملفات الأصول
+    private static final String ASSETS_BASE_URL = "https://resources.download.minecraft.net/"; 
     
     private final DataManager dataManager = new DataManager(); 
     private final DownloadManager downloadManager = new DownloadManager(); 
@@ -50,6 +53,40 @@ public class MinecraftLauncher {
         }
     }
 
+    /**
+     * getVersionInfo(): تجلب رابط Version JSON وبيانات الـ SHA1 من الـ Version Manifest Index.
+     */
+    private VersionManifestIndex.Version getVersionInfo(String versionId) {
+        File indexFile = new File(MINECRAFT_ROOT_DIR, "version_manifest_v2.json");
+
+        // 1. تنزيل/التحقق من ملف الـ Index الرئيسي
+        // لا يوجد SHA1 معطى لهذا الملف لذلك نمرر null
+        if (!downloadManager.downloadFile(VERSION_MANIFEST_URL, indexFile, null)) { 
+            System.err.println("FATAL: Could not download the main version manifest index.");
+            return null;
+        }
+
+        try (FileReader reader = new FileReader(indexFile)) {
+            VersionManifestIndex index = GSON.fromJson(reader, VersionManifestIndex.class);
+
+            if (index == null || index.getVersions() == null) {
+                System.err.println("Error parsing main version manifest index.");
+                return null;
+            }
+
+            // 2. البحث عن بيانات الإصدار المطلوب (مثل 1.21.10)
+            return index.getVersions().stream()
+                    .filter(v -> versionId.equals(v.getId()))
+                    .findFirst()
+                    .orElse(null);
+
+        } catch (IOException e) {
+            System.err.println("Error reading version index file: " + e.getMessage());
+            return null;
+        }
+    }
+
+
     public void launch(Profile profile, String username) {
         String versionId = profile.getVersionId();
         
@@ -60,14 +97,18 @@ public class MinecraftLauncher {
 
         System.out.println("\n--- Attempting to launch version: " + versionId + " ---");
         
+        // جلب بيانات الإصدار (الرابط والـ SHA1) بشكل ديناميكي
+        VersionManifestIndex.Version versionInfo = getVersionInfo(versionId);
+        if (versionInfo == null) {
+            System.err.println("FATAL: Could not find download URL for version " + versionId + ". Launch aborted.");
+            return;
+        }
+
         File versionJsonFile = new File(VERSIONS_DIR, versionId + File.separator + versionId + ".json");
         
         // 1. التحقق وتنزيل ملف الـ JSON
-        // **مؤقت:** نستخدم رابط وهاش ثابت لإصدار 1.20.1 لغرض التجربة
-        String knownVersionJsonUrl = "https://piston-data.mojang.com/v1/objects/1c261947b744474724a0d8e8736a5b672a9e34a2/1.20.1.json"; 
-        String dummySha1 = "d4807a505165c40467b7f2f11467406a6669910d";
-
-        if (!downloadManager.downloadFile(knownVersionJsonUrl, versionJsonFile, dummySha1)) {
+        // نستخدم الآن الرابط والـ SHA1 الذي تم جلبهما ديناميكياً
+        if (!downloadManager.downloadFile(versionInfo.getUrl(), versionJsonFile, versionInfo.getSha1())) {
             System.err.println("FATAL: Failed to ensure version JSON file. Cannot proceed.");
             return;
         }
@@ -155,15 +196,16 @@ public class MinecraftLauncher {
             return true; 
         }
 
-        // استخدام الدوال التي تم تصحيحها للتو
+        // استخدام الدوال التي تم تصحيحها في المرة السابقة
         String indexId = manifest.getAssetsIndex().getId();
         String indexUrl = manifest.getAssetsIndex().getUrl(); 
         String indexSha1 = manifest.getAssetsIndex().getSha1(); 
 
-        // **تعديل مؤقت:** نستخدم قيم ثابتة مؤقتة (Hardcoded) لإصدار 1.20.1 
-        // لأن المنفست (manifest) الذي نقوم بتحميله لا يحتوي على روابط indexUrl و indexSha1.
+        // **تنبيه:** ما زلنا نعتمد على قيم ثابتة (Hardcoded) مؤقتة إذا كانت الحقول فارغة في Version JSON
+        // هذا لأن بعض ملفات Version JSON القديمة لا تحتوي على رابط الـ Index URL/SHA1.
         if (indexUrl == null || indexSha1 == null) {
-            System.out.println("Warning: Assets Index URL/SHA1 missing from Manifest (using hardcoded values for 1.20.1).");
+            System.out.println("Warning: Assets Index URL/SHA1 missing from Manifest (using hardcoded values for 1.20.1 assets).");
+            // هذه القيم فقط للتأكد من ان Assets تعمل على أي حال، لكنها يجب أن تكون في VersionManifest
             indexId = "12"; 
             indexUrl = "https://piston-data.mojang.com/v1/objects/1b4d081f12953a992e59e19d750c8d1979b9a475/12.json"; 
             indexSha1 = "1b4d081f12953a992e59e19d750c8d1979b9a475";
@@ -192,22 +234,24 @@ public class MinecraftLauncher {
             // 2. تكرار وتنزيل كل أصل
             for (AssetIndex.AssetObject assetObject : assetIndex.getObjects().values()) {
                 String hash = assetObject.getHash();
-                String assetPath = assetObject.getPath(); // المسار داخل مجلد objects
-                String assetUrl = ASSETS_BASE_URL + assetPath; // الرابط الكامل
+                String assetPath = assetObject.getPath(); 
+                String assetUrl = ASSETS_BASE_URL + assetPath; 
 
                 File targetFile = new File(ASSETS_OBJECTS_DIR, assetPath);
                 
-                // هنا نستخدم hash كـ expectedSha1
                 if (downloadManager.downloadFile(assetUrl, targetFile, hash)) {
                     downloadedCount++;
-                    System.out.print("\rProgress: " + downloadedCount + "/" + totalAssets + " assets downloaded. ");
+                    // لتقليل الإخراج، نحدث شريط التقدم كل 100 أصل
+                    if (downloadedCount % 100 == 0 || downloadedCount == totalAssets) {
+                        System.out.print("\rProgress: " + downloadedCount + "/" + totalAssets + " assets downloaded. ");
+                    }
                 } else {
                     System.err.println("\nFailed to download asset: " + hash);
                     return false;
                 }
             }
 
-            System.out.println("\n--- All " + totalAssets + " assets are ready! ---");
+            System.out.println("\n--- All " + totalAssets + " assets are ready! 🔥 ---");
             return true;
 
         } catch (IOException e) {
