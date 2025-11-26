@@ -24,13 +24,6 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.jar.JarFile;
 
-// الإستيرادات المفقودة/المستخدمة في نفس الباكج
-import com.mhndk27.codex.launcher.DownloadManager;
-import com.mhndk27.codex.launcher.VersionManifestIndex;
-import com.mhndk27.codex.launcher.VersionManifest;
-import com.mhndk27.codex.launcher.AssetIndex;
-
-
 public class MinecraftLauncher {
 
     private static final Gson GSON = new GsonBuilder().create();
@@ -88,7 +81,30 @@ public class MinecraftLauncher {
         }
     }
 
+    /**
+     * Launch the game using a Profile ID (Recommended for dynamic launching)
+     * إطلاق اللعبة باستخدام معرف البروفايل (موصى به للتشغيل الديناميكي)
+     */
+    public void launch(String profileId) {
+        Profile profile = dataManager.getProfileById(profileId); // <--- تحتاج تطبيق هذه الدالة في DataManager
+        
+        if (profile == null) {
+            System.err.println("FATAL: Profile with ID " + profileId + " not found. Launch aborted.");
+            return;
+        }
 
+        // الحصول على اسم المستخدم من الحساب النشط
+        Account account = dataManager.getActiveAccount();
+        String username = account != null ? account.getUsername() : "Player";
+        
+        // استدعاء دالة الإطلاق الأصلية
+        launch(profile, username); 
+    }
+
+    /**
+     * Launch the game using a pre-loaded Profile object
+     * إطلاق اللعبة باستخدام كائن Profile محمل مسبقًا
+     */
     public void launch(Profile profile, String username) {
         String versionId = profile.getVersionId();
         
