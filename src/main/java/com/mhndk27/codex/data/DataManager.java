@@ -2,8 +2,8 @@ package com.mhndk27.codex.data;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
-import org.apache.commons.lang3.SystemUtils; // لتحديد نظام التشغيل
+import com.google.gson.reflect.TypeToken; 
+import org.apache.commons.lang3.SystemUtils; 
 
 import java.io.File;
 import java.io.FileReader;
@@ -14,32 +14,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+// DataManager: مسؤول عن إدارة ملفات profiles.json و accounts.json
 public class DataManager {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     
-    // مسار مجلد اللانشر الخاص: .codexlauncher
+    private static final String MINECRAFT_ROOT_DIR = getMinecraftRootDir();
     private static final File CODEX_DIR = new File(System.getProperty("user.home"), ".codexlauncher");
-    
-    // مسارات ملفات JSON الخاصة بـ Codex Launcher
     private static final File PROFILES_FILE = new File(CODEX_DIR, "profiles.json");
     private static final File ACCOUNTS_FILE = new File(CODEX_DIR, "accounts.json");
-    
-    // مسار مجلد .minecraft (ملفات اللعبة الأساسية)
-    private static final String MINECRAFT_ROOT_DIR = getMinecraftRootDir();
-    // مسار مجلد الـ Instances الافتراضي
     private static final File INSTANCES_DIR = new File(MINECRAFT_ROOT_DIR, "instances");
 
 
     public DataManager() {
         initializeDataFiles();
-        syncProfilesWithInstances(); // المزامنة التلقائية عند بدء التشغيل
+        syncProfilesWithInstances(); 
     }
     
-    // ------------------------------------
-    // دوال مساعدة (Utility Methods)
-    // ------------------------------------
-
     // تحديد مسار .minecraft حسب نظام التشغيل (OS)
     private static String getMinecraftRootDir() {
         if (SystemUtils.IS_OS_WINDOWS) {
@@ -53,12 +44,8 @@ public class DataManager {
         }
     }
 
-    // ------------------------------------
-    // تهيئة (Initialization)
-    // ------------------------------------
-
     private void initializeDataFiles() {
-        // إنشاء مجلدات اللانشر ومجلد الـ Instances ومجلد الـ Profiles
+        // إنشاء مجلدات اللانشر ومجلد الـ Instances 
         if (!CODEX_DIR.exists() && !CODEX_DIR.mkdirs()) {
             System.err.println("FATAL: Could not create Codex Launcher directory.");
             return;
@@ -67,11 +54,10 @@ public class DataManager {
              System.err.println("WARNING: Could not create default instances directory.");
         }
         
-        // 1. إنشاء ملف الحسابات الافتراضي (إذا لم يكن موجودًا)
+        // إنشاء ملف الحسابات الافتراضي 
         if (!ACCOUNTS_FILE.exists()) {
             System.out.println("Creating default accounts.json...");
             try {
-                // حساب افتراضي (Offline Mode)
                 List<Account> defaultAccounts = new ArrayList<>();
                 defaultAccounts.add(new Account(
                     UUID.randomUUID().toString(), 
@@ -79,57 +65,60 @@ public class DataManager {
                     "codex_token_temp", 
                     "Offline"
                 ));
-                saveAccounts(defaultAccounts); // تم إضافة الدالة saveAccounts
+                saveAccounts(defaultAccounts); 
             } catch (IOException e) {
                 System.err.println("Error saving default accounts file: " + e.getMessage());
             }
         }
     }
     
-    // ------------------------------------
-    // منطق المزامنة (Synchronization Logic)
-    // ------------------------------------
-    
-    /**
-     * syncProfilesWithInstances(): تفحص مجلد instances وتضيف البروفايلات الجديدة.
-     */
+    // دالة محاولة استخراج Version ID من مجلد Instance
+    private String guessVersionId(File instanceFolder) {
+        File instanceVersionsDir = new File(instanceFolder, "versions");
+        if (instanceVersionsDir.exists() && instanceVersionsDir.isDirectory()) {
+            File[] versionFolders = instanceVersionsDir.listFiles(File::isDirectory);
+            if (versionFolders != null && versionFolders.length > 0) {
+                // نأخذ اسم أول مجلد إصدار نجده 
+                return versionFolders[0].getName();
+            }
+        }
+        return null;
+    }
+
+
     public void syncProfilesWithInstances() {
         if (!INSTANCES_DIR.exists()) return;
         
         List<Profile> existingProfiles = loadProfiles();
-        File[] instanceFolders = INSTANCES_DIR.listFiles(File::isDirectory); // جلب كل المجلدات الفرعية
+        File[] instanceFolders = INSTANCES_DIR.listFiles(File::isDirectory); 
         
         if (instanceFolders != null) {
             boolean profileAdded = false;
             
             for (File folder : instanceFolders) {
-                // مسار مجلد البروفايل (مثل: instances/ayano_fembric)
                 String gameDirPath = folder.getAbsolutePath(); 
                 
-                // التحقق إذا كان البروفايل موجود مسبقًا في ملف profiles.json
                 boolean exists = existingProfiles.stream()
                                     .anyMatch(p -> gameDirPath.equals(p.getGameDir()));
                                     
                 if (!exists) {
-                    // إذا كان مجلد Instance جديد، ننشئ له بروفايل Codex جديد
-                    // اسم البروفايل يكون هو اسم المجلد
                     String profileName = folder.getName();
-                    
-                    // افتراضياً نربط بأحدث إصدار "1.21.10" (يجب أن يتم تعديله من قبل المستخدم لاحقًا)
-                    Profile newProfile = new Profile(profileName, "1.21.10"); 
-                    newProfile.setGameDir(gameDirPath); // تحديد مسار اللعبة
+                    String detectedVersion = guessVersionId(folder);
+
+                    Profile newProfile = new Profile(profileName, detectedVersion); 
+                    newProfile.setGameDir(gameDirPath); 
                     
                     existingProfiles.add(newProfile);
                     profileAdded = true;
-                    System.out.println("SYNC: Added new profile from instance folder: " + profileName);
+                    System.out.println("SYNC: Added new profile: " + profileName + 
+                                       (detectedVersion == null ? " (Version TBD)" : " (Version: " + detectedVersion + ")"));
                 }
             }
             
-            // إذا تم إضافة أي بروفايل جديد، نحفظ ملف JSON المحدث
-            if (profileAdded) {
-                try {
+            if (profileAdded || existingProfiles.isEmpty()) { // Ensure at least one default is saved if needed
+                 try {
                     saveProfiles(existingProfiles);
-                    System.out.println("SYNC: Successfully saved updated profiles.json.");
+                    System.out.println("SYNC: Successfully saved updated profiles.json. 😎");
                 } catch (IOException e) {
                     System.err.println("Error saving synchronized profiles: " + e.getMessage());
                 }
@@ -137,10 +126,7 @@ public class DataManager {
         }
     }
     
-    // ------------------------------------
     // دوال التحميل والحفظ
-    // ------------------------------------
-    
     public List<Profile> loadProfiles() {
         if (!PROFILES_FILE.exists()) return new ArrayList<>();
         try (FileReader reader = new FileReader(PROFILES_FILE)) {

@@ -11,8 +11,9 @@ public class Profile {
     private String gameDir;  
     private int memoryMax;   
     private String javaArgs; 
+    private String javaDir; // مسار ملف تشغيل الجافا (java.exe)
 
-    // مُنشئ (Constructor) المستخدم في DataManager.java (لإضافة بروفايل جديد من instance)
+    // مُنشئ (Constructor) كامل
     public Profile(String name, String versionId) {
         this.id = UUID.randomUUID().toString(); 
         this.name = name;
@@ -20,9 +21,10 @@ public class Profile {
         this.gameDir = null; 
         this.memoryMax = 4096; 
         this.javaArgs = "";    
+        this.javaDir = null; 
     }
     
-    // مُنشئ فارغ (Constructor) - ضروري لمكتبة Gson لقراءة الملفات
+    // مُنشئ فارغ (Constructor) - ضروري لمكتبة Gson
     public Profile() {
     }
 
@@ -33,15 +35,14 @@ public class Profile {
     public String getGameDir() { return gameDir; }
     public int getMemoryMax() { return memoryMax; }
     public String getJavaArgs() { return javaArgs; }
-    
+    public String getJavaDir() { return javaDir; } // تم إضافة Getter
+
     // دوال Setter (لتعديل البيانات)
     public void setMemoryMax(int memoryMax) { this.memoryMax = memoryMax; }
     public void setJavaArgs(String javaArgs) { this.javaArgs = javaArgs; }
-    
-    // تم إضافة هذه الدالة: (حل الخطأ: The method setGameDir(String) is undefined)
     public void setGameDir(String gameDir) { this.gameDir = gameDir; }
+    public void setJavaDir(String javaDir) { this.javaDir = javaDir; } // تم إضافة Setter
 
-    // دالة toString: لعرض الاسم فقط في القائمة المنسدلة
     @Override
     public String toString() {
         return name;
