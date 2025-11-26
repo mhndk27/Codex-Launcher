@@ -18,7 +18,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID; // <--- تم تصحيح خطأ الاستيراد
+import java.util.UUID; 
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.jar.JarFile;
@@ -31,6 +31,9 @@ public class MinecraftLauncher {
     private static final File VERSIONS_DIR = new File(MINECRAFT_ROOT_DIR, "versions");
     private static final File LIBRARIES_DIR = new File(MINECRAFT_ROOT_DIR, "libraries");
     private static final File ASSETS_DIR = new File(MINECRAFT_ROOT_DIR, "assets"); 
+    private static final File ASSETS_OBJECTS_DIR = new File(ASSETS_DIR, "objects"); // مسار ملفات الأصول الحقيقية
+    
+    private static final String ASSETS_BASE_URL = "https://resources.download.minecraft.net/"; // الرابط الأساسي لملفات الأصول
     
     private final DataManager dataManager = new DataManager(); 
     private final DownloadManager downloadManager = new DownloadManager(); 
@@ -84,6 +87,12 @@ public class MinecraftLauncher {
                 System.err.println("FATAL: Failed to download all required libraries and client JAR. Launch aborted.");
                 return;
             }
+
+            // 3. تنزيل جميع ملفات الأصول (Assets)
+            if (!downloadAssets(manifest)) {
+                System.err.println("FATAL: Failed to download all required assets. Launch aborted.");
+                return;
+            }
             
             nativesDir = extractNatives(manifest);
             
@@ -134,14 +143,85 @@ public class MinecraftLauncher {
             }
         }
     }
+
+    /**
+     * downloadAssets(): تنزيل ملفات الأصول (Assets) بناءً على ملف الـ Index.
+     */
+    private boolean downloadAssets(VersionManifest manifest) {
+        System.out.println("--- Starting Assets Download Check ---");
+
+        if (manifest.getAssetsIndex() == null) {
+            System.err.println("Warning: Assets index information missing.");
+            return true; 
+        }
+
+        // استخدام الدوال التي تم تصحيحها للتو
+        String indexId = manifest.getAssetsIndex().getId();
+        String indexUrl = manifest.getAssetsIndex().getUrl(); 
+        String indexSha1 = manifest.getAssetsIndex().getSha1(); 
+
+        // **تعديل مؤقت:** نستخدم قيم ثابتة مؤقتة (Hardcoded) لإصدار 1.20.1 
+        // لأن المنفست (manifest) الذي نقوم بتحميله لا يحتوي على روابط indexUrl و indexSha1.
+        if (indexUrl == null || indexSha1 == null) {
+            System.out.println("Warning: Assets Index URL/SHA1 missing from Manifest (using hardcoded values for 1.20.1).");
+            indexId = "12"; 
+            indexUrl = "https://piston-data.mojang.com/v1/objects/1b4d081f12953a992e59e19d750c8d1979b9a475/12.json"; 
+            indexSha1 = "1b4d081f12953a992e59e19d750c8d1979b9a475";
+        }
+
+
+        File assetIndexFile = new File(ASSETS_DIR, "indexes" + File.separator + indexId + ".json");
+
+        // 1. تنزيل ملف Assets Index JSON
+        if (!downloadManager.downloadFile(indexUrl, assetIndexFile, indexSha1)) {
+            System.err.println("FATAL: Failed to download asset index file.");
+            return false;
+        }
+
+        try (FileReader reader = new FileReader(assetIndexFile)) {
+            AssetIndex assetIndex = GSON.fromJson(reader, AssetIndex.class);
+            
+            if (assetIndex == null || assetIndex.getObjects() == null) {
+                System.err.println("Error parsing asset index JSON.");
+                return false;
+            }
+
+            int totalAssets = assetIndex.getObjects().size();
+            int downloadedCount = 0;
+            
+            // 2. تكرار وتنزيل كل أصل
+            for (AssetIndex.AssetObject assetObject : assetIndex.getObjects().values()) {
+                String hash = assetObject.getHash();
+                String assetPath = assetObject.getPath(); // المسار داخل مجلد objects
+                String assetUrl = ASSETS_BASE_URL + assetPath; // الرابط الكامل
+
+                File targetFile = new File(ASSETS_OBJECTS_DIR, assetPath);
+                
+                // هنا نستخدم hash كـ expectedSha1
+                if (downloadManager.downloadFile(assetUrl, targetFile, hash)) {
+                    downloadedCount++;
+                    System.out.print("\rProgress: " + downloadedCount + "/" + totalAssets + " assets downloaded. ");
+                } else {
+                    System.err.println("\nFailed to download asset: " + hash);
+                    return false;
+                }
+            }
+
+            System.out.println("\n--- All " + totalAssets + " assets are ready! ---");
+            return true;
+
+        } catch (IOException e) {
+            System.err.println("FATAL: Error reading asset index file: " + e.getMessage());
+            return false;
+        }
+    }
     
     /**
      * downloadRequiredFiles(): تنزيل ملف الكلاينت وجميع المكتبات المطلوبة.
      */
     private boolean downloadRequiredFiles(VersionManifest manifest, String versionId) {
-        System.out.println("--- Starting Resource Download Check ---");
+        System.out.println("--- Starting Libraries Download Check ---");
         
-        // التحقق من وجود معلومات التحميل
         if (manifest.getDownloads() == null || manifest.getDownloads().getClient() == null) {
             System.err.println("FATAL: Missing Client download information in version manifest.");
             return false;
@@ -176,7 +256,6 @@ public class MinecraftLauncher {
                 VersionManifest.Artifact nativeArtifact = lib.getDownloads().getClassifiers();
                 
                 if (nativeArtifact != null && nativeArtifact.getUrl() != null) {
-                    // بناء مسار ملف Native JAR بناءً على الـ nativeId
                     String[] parts = lib.getName().split(":");
                     String nativePath = parts[0].replace('.', File.separatorChar) + File.separator 
                                       + parts[1] + File.separator 
@@ -192,7 +271,7 @@ public class MinecraftLauncher {
             }
         }
 
-        System.out.println("--- All core resources are ready. 🔥 ---");
+        System.out.println("--- All core resources (Client JAR & Libraries) are ready. 🔥 ---");
         return true;
     }
 
@@ -291,7 +370,6 @@ public class MinecraftLauncher {
                 if (artifact != null && artifact.getPath() != null) {
                     return new File(LIBRARIES_DIR, artifact.getPath()).getAbsolutePath();
                 } else {
-                    // في حال عدم وجود معلومات تحميل مباشرة (وهو نادر)، نستخدم المسار القديم
                     String[] parts = lib.getName().split(":");
                     String path = parts[0].replace('.', File.separatorChar) + File.separator 
                                 + parts[1] + File.separator 
@@ -320,7 +398,6 @@ public class MinecraftLauncher {
         
         Account account = dataManager.getActiveAccount();
         String username = account != null ? account.getUsername() : "Player";
-        // إذا كان الـ accessToken فارغاً، اللعبة ستحاول التشغيل في وضع الأوفلاين (Offline Mode)
         String uuid = account != null ? account.getUuid() : "00000000-0000-0000-0000-000000000000"; 
         String accessToken = account != null ? account.getAccessToken() : "0"; 
         

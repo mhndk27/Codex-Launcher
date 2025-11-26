@@ -28,7 +28,12 @@ public class VersionManifest {
      */
     public static class AssetsIndex {
         private String id; 
+        private String url; // <--- تم الإضافة (حل الخطأ)
+        private String sha1; // <--- تم الإضافة (حل الخطأ)
+        
         public String getId() { return id; }
+        public String getUrl() { return url; } // <--- تم الإضافة (حل الخطأ)
+        public String getSha1() { return sha1; } // <--- تم الإضافة (حل الخطأ)
     }
     
     /**
