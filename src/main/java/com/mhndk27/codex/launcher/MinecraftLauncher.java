@@ -2,6 +2,7 @@ package com.mhndk27.codex.launcher;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.internal.LinkedTreeMap; 
 import com.mhndk27.codex.data.Account;
 import com.mhndk27.codex.data.DataManager;
 import com.mhndk27.codex.data.Profile;
@@ -27,7 +28,6 @@ public class MinecraftLauncher {
 
     private static final Gson GSON = new GsonBuilder().create(); 
     
-    // الرابط الرئيسي لقائمة إصدارات ماينكرافت
     private static final String VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"; 
     
     private static final String MINECRAFT_ROOT_DIR = getMinecraftRootDir();
@@ -53,14 +53,9 @@ public class MinecraftLauncher {
         }
     }
 
-    /**
-     * getVersionInfo(): تجلب رابط Version JSON وبيانات الـ SHA1 من الـ Version Manifest Index.
-     */
     private VersionManifestIndex.Version getVersionInfo(String versionId) {
         File indexFile = new File(MINECRAFT_ROOT_DIR, "version_manifest_v2.json");
 
-        // 1. تنزيل/التحقق من ملف الـ Index الرئيسي
-        // لا يوجد SHA1 معطى لهذا الملف لذلك نمرر null
         if (!downloadManager.downloadFile(VERSION_MANIFEST_URL, indexFile, null)) { 
             System.err.println("FATAL: Could not download the main version manifest index.");
             return null;
@@ -74,7 +69,6 @@ public class MinecraftLauncher {
                 return null;
             }
 
-            // 2. البحث عن بيانات الإصدار المطلوب (مثل 1.21.10)
             return index.getVersions().stream()
                     .filter(v -> versionId.equals(v.getId()))
                     .findFirst()
@@ -97,7 +91,6 @@ public class MinecraftLauncher {
 
         System.out.println("\n--- Attempting to launch version: " + versionId + " ---");
         
-        // جلب بيانات الإصدار (الرابط والـ SHA1) بشكل ديناميكي
         VersionManifestIndex.Version versionInfo = getVersionInfo(versionId);
         if (versionInfo == null) {
             System.err.println("FATAL: Could not find download URL for version " + versionId + ". Launch aborted.");
@@ -106,8 +99,6 @@ public class MinecraftLauncher {
 
         File versionJsonFile = new File(VERSIONS_DIR, versionId + File.separator + versionId + ".json");
         
-        // 1. التحقق وتنزيل ملف الـ JSON
-        // نستخدم الآن الرابط والـ SHA1 الذي تم جلبهما ديناميكياً
         if (!downloadManager.downloadFile(versionInfo.getUrl(), versionJsonFile, versionInfo.getSha1())) {
             System.err.println("FATAL: Failed to ensure version JSON file. Cannot proceed.");
             return;
@@ -123,7 +114,6 @@ public class MinecraftLauncher {
                 return;
             }
             
-            // 2. تنزيل جميع المكتبات وملف الكلاينت JAR
             if (!downloadRequiredFiles(manifest, versionId)) {
                 System.err.println("FATAL: Failed to download all required libraries and client JAR. Launch aborted.");
                 return;
@@ -140,13 +130,14 @@ public class MinecraftLauncher {
             String classpath = buildClassPath(manifest, versionId);
             String mainClass = manifest.getMainClass();
             
-            String assetsIndex = (manifest.getAssetsIndex() != null) 
-                                 ? manifest.getAssetsIndex().getId() 
+            // تم التعديل لاستخدام getAssetIndex()
+            String assetsIndex = (manifest.getAssetIndex() != null) 
+                                 ? manifest.getAssetIndex().getId() 
                                  : manifest.getAssets(); 
             
             List<String> gameArguments = parseGameArguments(profile, manifest);
 
-            List<String> command = buildLaunchCommand(profile, mainClass, classpath, assetsIndex, gameArguments, nativesDir);
+            List<String> command = buildLaunchCommand(profile, manifest, mainClass, classpath, assetsIndex, gameArguments, nativesDir);
 
             System.out.println("Command Structure: java -cp <CLASSPATH> " + mainClass + " [ARGS]");
             
@@ -191,24 +182,20 @@ public class MinecraftLauncher {
     private boolean downloadAssets(VersionManifest manifest) {
         System.out.println("--- Starting Assets Download Check ---");
 
-        if (manifest.getAssetsIndex() == null) {
-            System.err.println("Warning: Assets index information missing.");
+        // تم التعديل لاستخدام getAssetIndex()
+        if (manifest.getAssetIndex() == null) {
+            System.err.println("Warning: Assets index information missing in manifest.");
             return true; 
         }
 
-        // استخدام الدوال التي تم تصحيحها في المرة السابقة
-        String indexId = manifest.getAssetsIndex().getId();
-        String indexUrl = manifest.getAssetsIndex().getUrl(); 
-        String indexSha1 = manifest.getAssetsIndex().getSha1(); 
+        VersionManifest.AssetsIndex assetsIndex = manifest.getAssetIndex();
+        String indexId = assetsIndex.getId(); 
+        String indexUrl = assetsIndex.getUrl(); 
+        String indexSha1 = assetsIndex.getSha1(); 
 
-        // **تنبيه:** ما زلنا نعتمد على قيم ثابتة (Hardcoded) مؤقتة إذا كانت الحقول فارغة في Version JSON
-        // هذا لأن بعض ملفات Version JSON القديمة لا تحتوي على رابط الـ Index URL/SHA1.
         if (indexUrl == null || indexSha1 == null) {
-            System.out.println("Warning: Assets Index URL/SHA1 missing from Manifest (using hardcoded values for 1.20.1 assets).");
-            // هذه القيم فقط للتأكد من ان Assets تعمل على أي حال، لكنها يجب أن تكون في VersionManifest
-            indexId = "12"; 
-            indexUrl = "https://piston-data.mojang.com/v1/objects/1b4d081f12953a992e59e19d750c8d1979b9a475/12.json"; 
-            indexSha1 = "1b4d081f12953a992e59e19d750c8d1979b9a475";
+            System.err.println("FATAL: Assets Index URL/SHA1 missing from Manifest. Cannot proceed with asset download.");
+            return false;
         }
 
 
@@ -234,14 +221,13 @@ public class MinecraftLauncher {
             // 2. تكرار وتنزيل كل أصل
             for (AssetIndex.AssetObject assetObject : assetIndex.getObjects().values()) {
                 String hash = assetObject.getHash();
-                String assetPath = assetObject.getPath(); 
-                String assetUrl = ASSETS_BASE_URL + assetPath; 
+                String firstTwo = hash.substring(0, 2); 
+                String assetUrl = ASSETS_BASE_URL + firstTwo + "/" + hash; 
 
-                File targetFile = new File(ASSETS_OBJECTS_DIR, assetPath);
+                File targetFile = new File(ASSETS_OBJECTS_DIR, firstTwo + File.separator + hash);
                 
                 if (downloadManager.downloadFile(assetUrl, targetFile, hash)) {
                     downloadedCount++;
-                    // لتقليل الإخراج، نحدث شريط التقدم كل 100 أصل
                     if (downloadedCount % 100 == 0 || downloadedCount == totalAssets) {
                         System.out.print("\rProgress: " + downloadedCount + "/" + totalAssets + " assets downloaded. ");
                     }
@@ -271,7 +257,6 @@ public class MinecraftLauncher {
             return false;
         }
 
-        // 1. تنزيل ملف Client JAR الرئيسي
         VersionManifest.ClientDownload clientDownload = manifest.getDownloads().getClient();
         File mainJar = new File(VERSIONS_DIR, versionId + File.separator + versionId + ".jar");
         
@@ -279,13 +264,11 @@ public class MinecraftLauncher {
             return false;
         }
 
-        // 2. تنزيل جميع المكتبات (Libraries) والـ Natives
         for (VersionManifest.Library lib : manifest.getLibraries()) {
             if (!lib.appliesToCurrentOS() || lib.getDownloads() == null) {
                 continue; 
             }
 
-            // أ. تنزيل المكتبات العادية (Artifact)
             VersionManifest.Artifact artifact = lib.getDownloads().getArtifact();
             if (artifact != null && artifact.getUrl() != null) {
                  File libFile = new File(LIBRARIES_DIR, artifact.getPath());
@@ -294,7 +277,6 @@ public class MinecraftLauncher {
                  }
             }
 
-            // ب. تنزيل Natives (Classifiers)
             String nativeId = lib.getNativeId();
             if (nativeId != null) {
                 VersionManifest.Artifact nativeArtifact = lib.getDownloads().getClassifiers();
@@ -319,9 +301,6 @@ public class MinecraftLauncher {
         return true;
     }
 
-    /**
-     * deleteDirectory(): دالة مساعدة لحذف مجلد والمحتوى بداخله بشكل متكرر.
-     */
     private void deleteDirectory(File dir) throws IOException {
         if (dir.isDirectory()) {
             File[] children = dir.listFiles();
@@ -337,9 +316,6 @@ public class MinecraftLauncher {
     }
 
 
-    /**
-     * getTemporaryNativesDir(): إنشاء مجلد مؤقت لاستخراج Natives إليه.
-     */
     private File getTemporaryNativesDir() throws IOException {
         String tempDirName = "natives-" + UUID.randomUUID().toString(); 
         File tempDir = new File(VERSIONS_DIR, tempDirName); 
@@ -350,9 +326,6 @@ public class MinecraftLauncher {
         return tempDir;
     }
 
-    /**
-     * extractNatives(): استخراج الملفات التنفيذية الأصلية إلى المجلد المؤقت.
-     */
     private File extractNatives(VersionManifest manifest) throws IOException {
         File nativesDir = getTemporaryNativesDir();
         
@@ -433,10 +406,28 @@ public class MinecraftLauncher {
     }
     
     private List<String> parseGameArguments(Profile profile, VersionManifest manifest) {
-        String argsString = manifest.getMinecraftArguments();
         
-        if (argsString == null || argsString.isEmpty()) {
-            System.err.println("Warning: 'minecraftArguments' is missing. Launch command may be incomplete.");
+        List<String> rawArguments = new ArrayList<>();
+        
+        if (manifest.getArguments() != null && manifest.getArguments().getGame() != null) {
+            
+            for (Object arg : manifest.getArguments().getGame()) {
+                if (arg instanceof String) {
+                    rawArguments.add((String) arg);
+                } else if (arg instanceof LinkedTreeMap) {
+                    // تجاهل قواعد الـ Rules المعقدة مؤقتاً
+                }
+            }
+            
+            if (rawArguments.isEmpty()) {
+                System.err.println("Warning: Modern game arguments were found but list is empty or contains only complex rules (not currently supported).");
+            }
+        
+        } else if (manifest.getMinecraftArguments() != null && !manifest.getMinecraftArguments().isEmpty()) {
+            System.out.println("Using legacy 'minecraftArguments' format.");
+            rawArguments.addAll(Arrays.asList(manifest.getMinecraftArguments().split(" ")));
+        } else {
+            System.err.println("Warning: Neither 'arguments' nor 'minecraftArguments' were found in the manifest.");
             return new ArrayList<>();
         }
         
@@ -445,26 +436,61 @@ public class MinecraftLauncher {
         String uuid = account != null ? account.getUuid() : "00000000-0000-0000-0000-000000000000"; 
         String accessToken = account != null ? account.getAccessToken() : "0"; 
         
+        String versionType = (manifest.getArguments() != null) ? "release" : "Legacy"; 
+        
         Map<String, String> replacements = new HashMap<>();
         replacements.put("${auth_player_name}", username);
         replacements.put("${version_name}", profile.getVersionId());
         replacements.put("${game_directory}", profile.getGameDir() != null ? profile.getGameDir() : MINECRAFT_ROOT_DIR);
         replacements.put("${assets_root}", ASSETS_DIR.getAbsolutePath());
-        replacements.put("${assets_index}", (manifest.getAssetsIndex() != null ? manifest.getAssetsIndex().getId() : manifest.getAssets()));
+        // تم التعديل لاستخدام getAssetIndex()
+        replacements.put("${assets_index}", (manifest.getAssetIndex() != null ? manifest.getAssetIndex().getId() : manifest.getAssets())); 
         replacements.put("${auth_uuid}", uuid);
-        replacements.put("${auth_access_token}", accessToken);
+        replacements.put("${auth_access_token}", accessToken); 
         replacements.put("${user_type}", "mojang"); 
-        replacements.put("${version_type}", "release"); 
+        replacements.put("${version_type}", versionType);
         
-        String resolvedArgs = argsString;
-        for (Map.Entry<String, String> entry : replacements.entrySet()) {
-            resolvedArgs = resolvedArgs.replace(entry.getKey(), entry.getValue());
+        replacements.put("${clientid}", "launcher"); 
+        replacements.put("${auth_xuid}", "0"); 
+        
+        List<String> resolvedArguments = new ArrayList<>();
+        for (String arg : rawArguments) {
+            String resolvedArg = arg;
+            for (Map.Entry<String, String> entry : replacements.entrySet()) {
+                resolvedArg = resolvedArg.replace(entry.getKey(), entry.getValue());
+            }
+            resolvedArguments.add(resolvedArg);
         }
         
-        return Arrays.asList(resolvedArgs.split(" "));
+        return resolvedArguments;
     }
 
-    private List<String> buildLaunchCommand(Profile profile, String mainClass, String classpath, String assetsIndex, List<String> gameArguments, File nativesDir) {
+    private List<String> getJvmArguments(VersionManifest manifest, String classpath) {
+        if (manifest.getArguments() == null || manifest.getArguments().getJvm() == null) {
+            return new ArrayList<>();
+        }
+        
+        Map<String, String> jvmReplacements = new HashMap<>();
+        jvmReplacements.put("${classpath}", classpath);
+        jvmReplacements.put("${library_directory}", LIBRARIES_DIR.getAbsolutePath()); 
+        
+        List<String> jvmArgs = new ArrayList<>();
+        for (Object arg : manifest.getArguments().getJvm()) {
+            if (arg instanceof String) {
+                String argString = (String) arg;
+                for (Map.Entry<String, String> entry : jvmReplacements.entrySet()) {
+                    argString = argString.replace(entry.getKey(), entry.getValue());
+                }
+                jvmArgs.add(argString);
+            } else if (arg instanceof LinkedTreeMap) {
+                // تجاهل قواعد الـ JVM المعقدة مؤقتاً
+            }
+        }
+        return jvmArgs;
+    }
+
+
+    private List<String> buildLaunchCommand(Profile profile, VersionManifest manifest, String mainClass, String classpath, String assetsIndex, List<String> gameArguments, File nativesDir) {
         List<String> command = new ArrayList<>();
         
         String javaExecutable = "java"; 
@@ -473,11 +499,16 @@ public class MinecraftLauncher {
         }
         command.add(javaExecutable); 
         
+        // JVM Arguments (الخاصة بالإصدار - الصيغة الجديدة)
+        List<String> versionJvmArgs = getJvmArguments(manifest, classpath);
+        command.addAll(versionJvmArgs);
+        
+        // 1. إضافة مسار Natives (مطلوب دائماً)
         if (nativesDir != null) {
             command.add("-Djava.library.path=" + nativesDir.getAbsolutePath());
         }
         
-        // JVM Arguments
+        // 2. JVM Arguments (الخاصة بالمستخدم)
         command.add("-Xmx" + profile.getMemoryMax() + "M"); 
         if (profile.getJavaArgs() != null && !profile.getJavaArgs().isEmpty()) {
             for (String arg : profile.getJavaArgs().split(" ")) {
@@ -485,14 +516,16 @@ public class MinecraftLauncher {
             }
         }
         
-        // Classpath
-        command.add("-cp"); 
-        command.add(classpath); 
+        // 3. Classpath - يتم إضافته فقط إذا كان الإصدار قديماً
+        if (manifest.getArguments() == null) { 
+            command.add("-cp"); 
+            command.add(classpath); 
+        }
 
-        // Main Class
+        // 4. Main Class
         command.add(mainClass); 
         
-        // Game Arguments
+        // 5. Game Arguments
         command.addAll(gameArguments);
 
         return command;
