@@ -1,0 +1,16 @@
+com\mhndk27\codex\ui\Controller.class
+com\mhndk27\codex\AppRunner.class
+com\mhndk27\codex\util\SettingsManager.class
+com\mhndk27\codex\downloader\LibraryDownloader$Library.class
+com\mhndk27\codex\MainApp.class
+com\mhndk27\codex\auth\AuthManager.class
+com\mhndk27\codex\util\ZipUtils.class
+com\mhndk27\codex\downloader\AssetsDownloader.class
+com\mhndk27\codex\downloader\MetadataDownloader.class
+com\mhndk27\codex\auth\AuthManager$SavedAccount.class
+com\mhndk27\codex\launch\MinecraftLauncher.class
+com\mhndk27\codex\downloader\LibraryDownloader.class
+com\mhndk27\codex\util\SettingsManager$LauncherSettings.class
+com\mhndk27\codex\auth\AuthManager$AuthType.class
+com\mhndk27\codex\util\GsonFactory.class
+com\mhndk27\codex\util\DataStore.class

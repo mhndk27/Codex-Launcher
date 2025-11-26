@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Codex Launcher Enhanced</title>
+<style>
+/* ---------------------- */
+/* ===== GENERAL ===== */
+/* ---------------------- */
+body {
+    margin: 0;
+    background: #0f0f0f; /* خلفية عامة للواجهة */
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex; /* sidebar + main screen */
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ---------------------- */
+/* ===== SIDEBAR ===== */
+/* ---------------------- */
+.sidebar {
+    width: 260px; /* عرض الشريط الجانبي */
+    background: #181818;
+    border-right: 1px solid #2a2a2a;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: relative;
+}
+
+/* ---------------------- */
+/* ===== TOP FIXED ===== */
+/* الحسابات والإعدادات ثابتة فوق الشريط الجانبي */
+/* ---------------------- */
+.top-fixed {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+}
+
+/* ===== الحساب ===== */
+.block#btn-account {
+    border-radius: 12px 12px 0 0; /* منحني من فوق */
+    position: relative;
+    background: #222;
+    padding: 15px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.block#btn-account:hover { background: #2d2d2d; }
+
+/* مربع اسم الحساب أسفل زر الحساب */
+.account-box {
+    background: #2a2a2a;
+    padding: 12px;
+    border-radius: 0 0 12px 12px; /* منحني من تحت */
+    font-size: 14px;
+    text-align: center;
+    margin-top: -8px; /* ملتصق بالزر فوق */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* مساحة صغيرة للأيقونة/النص */
+}
+
+/* ===== الإعدادات ===== */
+.block#btn-settings {
+    border-radius: 12px; /* منحني كامل */
+    background: #222;
+    padding: 15px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.block#btn-settings:hover { background: #2d2d2d; }
+
+/* ---------------------- */
+/* ===== VERSIONS LIST ===== */
+/* قائمة الإصدارات قابلة للتمرير */
+/* ---------------------- */
+.versions-scroll {
+    flex: 1; /* ياخذ المساحة الباقية */
+    overflow-y: auto; /* scroll عمودي */
+    padding: 0 20px;
+    position: relative;
+}
+
+/* عنوان Versions ثابت أثناء التمرير */
+.versions-title {
+    position: sticky;
+    top: 0;
+    background: #181818; /* نفس لون الشريط الجانبي */
+    padding: 10px 0;
+    font-size: 14px;
+    opacity: 0.7;
+    z-index: 5;
+}
+
+/* كل عنصر إصدار */
+.version-item {
+    background: #222;
+    padding: 18px;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.version-item:hover { background: #2d2d2d; }
+
+/* Scrollbar صغير وأنيق */
+.versions-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+.versions-scroll::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 3px;
+}
+.versions-scroll::-webkit-scrollbar-track {
+    background: #181818;
+}
+
+/* ---------------------- */
+/* ===== BOTTOM FIXED ===== */
+/* زر Add Version ثابت أسفل sidebar */
+/* ---------------------- */
+.bottom-fixed {
+    padding: 20px;
+}
+.add-btn {
+    background: #3b82f6;
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.add-btn:hover { background: #2f6bd6; }
+
+/* ---------------------- */
+/* ===== MAIN PANEL ===== */
+/* ---------------------- */
+.main {
+    flex: 1;
+    background: #131313;
+    overflow-y: auto;
+    padding: 30px;
+}
+.panel {
+    background: #1b1b1b;
+    border-radius: 12px;
+    padding: 25px;
+}
+
+/* القوائم داخل panel */
+.menu-item {
+    background: #222;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.menu-item:hover { background: #2d2d2d; }
+
+/* Forms داخل panel */
+.form-group {
+    margin-bottom: 15px;
+}
+.form-group label { display: block; margin-bottom: 5px; font-size: 14px; }
+.form-group input, .form-group select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: none;
+    background: #222;
+    color: white;
+}
+.form-group input[type="file"] { padding: 3px; }
+.btn-action {
+    background: #3b82f6;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-block;
+    margin-top: 5px;
+}
+.btn-action:hover { background: #2f6bd6; }
+</style>
+</head>
+<body>
+
+<!-- ====================== -->
+<!-- ===== SIDEBAR ===== -->
+<!-- ====================== -->
+<div class="sidebar">
+
+    <!-- ===== TOP FIXED ===== -->
+    <div class="top-fixed">
+        <!-- زر الحساب -->
+        <div class="block" id="btn-account">👤 Account</div>
+        <!-- مربع اسم الحساب أسفل الزر -->
+        <div class="account-box" id="current-account">Ely</div>
+        <!-- زر الإعدادات -->
+        <div class="block" id="btn-settings">⚙️ Settings</div>
+    </div>
+
+    <!-- ===== VERSIONS SCROLL ===== -->
+    <div class="versions-scroll">
+        <!-- عنوان ثابت -->
+        <div class="versions-title">Versions</div>
+        <!-- قائمة الإصدارات -->
+        <div id="versions-list">
+            <div class="version-item" data-type="vanilla">📦 1.21.4</div>
+            <div class="version-item" data-type="modded">📦 1.20.1</div>
+            <div class="version-item" data-type="vanilla">📦 1.19.2</div>
+            <div class="version-item" data-type="modded">📦 1.18.2</div>
+            <div class="version-item" data-type="vanilla">📦 1.17.1</div>
+        </div>
+    </div>
+
+    <!-- ===== BOTTOM FIXED ===== -->
+    <div class="bottom-fixed">
+        <!-- زر Add Version ثابت أسفل sidebar -->
+        <div class="add-btn" id="btn-add-version">➕ Add Version</div>
+    </div>
+
+</div>
+
+<!-- ====================== -->
+<!-- ===== MAIN SCREEN ===== -->
+<!-- ====================== -->
+<div class="main" id="main-screen">
+    <div class="panel">
+        <h2>Welcome to Codex Launcher</h2>
+        <p>Select something from the left panel to begin.</p>
+    </div>
+</div>
+
+<script>
+/* ====================== */
+/* ===== HELPER FUNCTION ===== */
+function loadPanel(title, contentHtml) {
+    // يحط الـ panel بالمحتوى المطلوب
+    document.getElementById('main-screen').innerHTML = `
+        <div class="panel">
+            <h2>${title}</h2>
+            ${contentHtml}
+        </div>`;
+}
+
+/* ====================== */
+/* ===== ACCOUNT PANEL ===== */
+document.getElementById('btn-account').onclick = () => {
+    loadPanel('Account', `
+        <div class="form-group">
+            <label>Current Account:</label>
+            <input type="text" value="Ely" readonly>
+        </div>
+        <div class="form-group">
+            <label>Switch Account:</label>
+            <select>
+                <option>Ely</option>
+                <option>Microsoft</option>
+                <option>Guest</option>
+            </select>
+        </div>
+    `);
+};
+
+/* ====================== */
+/* ===== SETTINGS PANEL ===== */
+document.getElementById('btn-settings').onclick = () => {
+    loadPanel('Settings', `
+        <div class="form-group">
+            <label>Language:</label>
+            <select>
+                <option>English</option>
+                <option>Arabic</option>
+                <option>French</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Theme Color:</label>
+            <input type="color" value="#3b82f6">
+        </div>
+        <div class="form-group">
+            <label>Always use external GPU:</label>
+            <select>
+                <option>Yes</option>
+                <option>No</option>
+            </select>
+        </div>
+    `);
+};
+
+/* ====================== */
+/* ===== VERSIONS PANEL ===== */
+document.querySelectorAll('.version-item').forEach((el) => {
+    el.onclick = () => {
+        const versionName = el.innerText;
+        const type = el.getAttribute('data-type');
+        const isModded = type === 'modded';
+
+        let content = `
+            <div class="form-group">
+                <label>Version Name:</label>
+                <input type="text" value="${versionName}">
+            </div>
+            <div class="form-group">
+                <label>Java Version:</label>
+                <input type="text" value="Java 18">
+            </div>
+            <div class="form-group">
+                <label>Java Path:</label>
+                <input type="text" value="C:/Program Files/Java/jdk-18">
+            </div>
+            <div class="form-group">
+                <label>Version Type:</label>
+                <input type="text" value="${type}" readonly>
+            </div>
+            <div class="form-group">
+                <label>Version Image:</label>
+                <input type="file">
+            </div>
+        `;
+
+        if(isModded) {
+            content += `<div class="btn-action" onclick="alert('Open mods folder')">Open Mods Folder</div>`;
+        }
+
+        loadPanel('Version: ' + versionName, content);
+    };
+});
+
+/* ====================== */
+/* === ملاحظة هامة === */
+/* هذه الواجهة HTML/JS/CSS مجرد نموذج للتصميم فقط */
+/* لن يتم ترجمتها مباشرة لإلكترون */
+/* الفكرة هي تطبيق layout مماثل لاحقاً على JavaFX */
+</script>
+
+</body>
+</html>
