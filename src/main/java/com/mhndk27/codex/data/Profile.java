@@ -42,7 +42,7 @@ public class Profile {
     public void setJavaArgs(String javaArgs) { this.javaArgs = javaArgs; }
     public void setGameDir(String gameDir) { this.gameDir = gameDir; }
     public void setJavaDir(String javaDir) { this.javaDir = javaDir; } // تم إضافة Setter
-
+    public void setId(String id) {this.id = id;}
     @Override
     public String toString() {
         return name;

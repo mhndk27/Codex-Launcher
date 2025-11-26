@@ -99,13 +99,20 @@ public class DataManager {
                 String gameDirPath = folder.getAbsolutePath(); 
                 
                 boolean exists = existingProfiles.stream()
-                                    .anyMatch(p -> gameDirPath.equals(p.getGameDir()));
-                                    
+                                         .anyMatch(p -> gameDirPath.equals(p.getGameDir()));
+                                         
                 if (!exists) {
                     String profileName = folder.getName();
                     String detectedVersion = guessVersionId(folder);
 
+                    // تأكد أن هذا الـ constructor موجود في Profile.java
                     Profile newProfile = new Profile(profileName, detectedVersion); 
+                    
+                    // توليد ID جديد إذا لم يكن موجوداً (وهذا ضروري للبحث)
+                    if (newProfile.getId() == null || newProfile.getId().isEmpty()) {
+                        newProfile.setId(UUID.randomUUID().toString());
+                    }
+                    
                     newProfile.setGameDir(gameDirPath); 
                     
                     existingProfiles.add(newProfile);
@@ -115,15 +122,30 @@ public class DataManager {
                 }
             }
             
-            if (profileAdded || existingProfiles.isEmpty()) { // Ensure at least one default is saved if needed
+            if (profileAdded || existingProfiles.isEmpty()) { 
                  try {
-                    saveProfiles(existingProfiles);
-                    System.out.println("SYNC: Successfully saved updated profiles.json. 😎");
-                } catch (IOException e) {
-                    System.err.println("Error saving synchronized profiles: " + e.getMessage());
-                }
+                     saveProfiles(existingProfiles);
+                     System.out.println("SYNC: Successfully saved updated profiles.json. 😎");
+                 } catch (IOException e) {
+                     System.err.println("Error saving synchronized profiles: " + e.getMessage());
+                 }
             }
         }
+    }
+    
+    // 💥 الدالة المطلوبة لعمل التشغيل الديناميكي (Fixes error 'getProfileById is undefined')
+    /**
+     * البحث عن وإرجاع بروفايل معين باستخدام الـ ID.
+     * @param profileId معرف البروفايل (Profile ID).
+     * @return كائن Profile أو null إذا لم يتم العثور عليه.
+     */
+    public Profile getProfileById(String profileId) {
+        List<Profile> profiles = loadProfiles();
+        // نبحث داخل الـ List عن الـ ID المطابق
+        return profiles.stream()
+                       .filter(p -> p.getId() != null && p.getId().equals(profileId))
+                       .findFirst()
+                       .orElse(null);
     }
     
     // دوال التحميل والحفظ
